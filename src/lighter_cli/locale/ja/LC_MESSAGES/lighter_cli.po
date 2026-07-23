@@ -1,0 +1,67 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ja\n"
+
+msgid "Lighter DEX CLI"
+msgstr "Lighter DEX のCLI"
+
+msgid "Account management and information"
+msgstr "アカウントの管理と情報"
+
+msgid "Order management and trading"
+msgstr "注文の管理と取引"
+
+msgid "Asset-specific information"
+msgstr "銘柄ごとの情報"
+
+msgid "Market information"
+msgstr "マーケット情報"
+
+msgid "Referral management"
+msgstr "リファラルの管理"
+
+msgid "Print shell completion script"
+msgstr "シェル補完スクリプトを表示"
+
+msgid "Output in JSON format"
+msgstr "JSON形式で出力"
+
+msgid "Use testnet"
+msgstr "テストネットを使用"
+
+msgid "Display language (e.g. en, ja, zh, ko)"
+msgstr "表示言語 (例: en, ja, zh, ko)"
+
+msgid "Command tree:"
+msgstr "コマンド一覧:"
+
+msgid "Perpetual markets"
+msgstr "先物マーケット"
+
+msgid "Asset"
+msgstr "銘柄"
+
+msgid "Pair"
+msgstr "ペア"
+
+msgid "Price"
+msgstr "価格"
+
+msgid "Volume"
+msgstr "出来高"
+
+msgid "Funding rate"
+msgstr "資金調達率"
+
+msgid "Open interest"
+msgstr "建玉"
+
+msgid "Markets: perpetual {perps} / spot {spots}"
+msgstr "マーケット: 先物 {perps} / 現物 {spots}"
+
+msgid "sort-by must be volume, oi, price, change, funding, or coin"
+msgstr "sort-by は volume、oi、price、change、funding、coin のいずれかです"
+
+msgid "Examples:"
+msgstr "例:"

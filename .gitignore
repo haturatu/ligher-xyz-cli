@@ -1,0 +1,31 @@
+# Python bytecode and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Packaging and virtual environments
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+.venv/
+venv/
+ENV/
+
+# Local Lighter CLI configuration, account data, and logs
+.lighter/
+config.json
+accounts.json
+server.pid
+server.log
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/

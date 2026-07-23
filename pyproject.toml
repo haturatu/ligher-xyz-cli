@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lighter-cli"
+version = "0.2.0"
+description = "CLI for Lighter exchange, powered by the official lighter-sdk"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["lighter-sdk==1.1.2", "rich>=13.7"]
+
+[project.scripts]
+lighter = "lighter_cli.main:main"
+lt = "lighter_cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lighter_cli*"]
+
+[tool.setuptools.package-data]
+lighter_cli = ["locale/*/LC_MESSAGES/*.mo", "locale/*/LC_MESSAGES/*.po"]
