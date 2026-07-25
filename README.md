@@ -1,22 +1,34 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Lighter CLI](#lighter-cli)
+  - [Contents](#contents)
+  - [Requirements](#requirements)
+  - [Installation](#installation)
+  - [Shell completion](#shell-completion)
+  - [Quick start](#quick-start)
+  - [Command reference](#command-reference)
+    - [Global options](#global-options)
+    - [Accounts](#accounts)
+    - [Markets and assets](#markets-and-assets)
+    - [Orders](#orders)
+    - [Referral](#referral)
+  - [Accounts and security](#accounts-and-security)
+  - [Output and languages](#output-and-languages)
+  - [Testnet](#testnet)
+  - [Development](#development)
+  - [Project layout](#project-layout)
+  - [References](#references)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Lighter CLI
 
 Python CLI for [Lighter](https://lighter.xyz/) account management, market data,
 and SDK-signed trading workflows. It uses the official
 [lighter-python SDK](https://github.com/elliottech/lighter-python) for signing,
 nonces, authentication, and WebSocket connectivity.
-
-## Contents
-
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Shell completion](#shell-completion)
-- [Quick start](#quick-start)
-- [Command reference](#command-reference)
-- [Accounts and security](#accounts-and-security)
-- [Output and languages](#output-and-languages)
-- [Testnet](#testnet)
-- [Development](#development)
-- [Project layout](#project-layout)
 
 ## Requirements
 
