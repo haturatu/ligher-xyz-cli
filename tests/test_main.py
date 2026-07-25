@@ -31,6 +31,12 @@ def test_signed_order_commands_execute_by_default():
 def test_stake_size_is_truncated_to_market_precision():
     assert main.stake_size(10, None, main.Decimal("51000"), 5, True) == "0.00019"
     assert main.stake_size(50, 10, main.Decimal("51000"), 5, True) == "0.00980"
+
+
+def test_tpsl_child_nonces_are_unique_when_explicit():
+    assert main.child_nonce(123, 0) == 123
+    assert main.child_nonce(123, 1) == 124
+    assert main.child_nonce(-1, 1) == -1
 from lighter_cli.cli.output import render
 
 

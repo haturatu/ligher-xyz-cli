@@ -221,6 +221,11 @@ def stake_size(stake: float, leverage: int | None, price: Decimal, decimals: int
     return format(size, "f")
 
 
+def child_nonce(base_nonce: int, offset: int) -> int:
+    """Return a unique nonce for each child of a grouped user operation."""
+    return -1 if base_nonce == -1 else base_nonce + offset
+
+
 def resolve_cancel(args: argparse.Namespace) -> tuple[str, int]:
     """Resolve hl-compatible optional cancel arguments against Lighter orders."""
     account = get_account(args)
@@ -341,17 +346,21 @@ async def signed_tpsl(args: argparse.Namespace) -> dict[str, Any]:
         size = integer(str(abs(raw_size) * Decimal(str(args.ratio))), int(book["supported_size_decimals"]), "position size")
         ask = raw_size > 0
         result = []
-        for name, trigger, kind in (("take-profit", args.tp, client.ORDER_TYPE_TAKE_PROFIT), ("stop-loss", args.sl, client.ORDER_TYPE_STOP_LOSS)):
-            if trigger is None:
-                continue
+        orders = (("take-profit", args.tp, client.ORDER_TYPE_TAKE_PROFIT), ("stop-loss", args.sl, client.ORDER_TYPE_STOP_LOSS))
+        for offset, (name, trigger, kind) in enumerate(order for order in orders if order[1] is not None):
             price = integer(str(trigger), int(book["supported_price_decimals"]), name)
-            tx_type, tx_info, tx_hash, error = client.sign_create_order(int(book["market_id"]), int(time.time_ns() % 9_000_000_000), size, price, ask, kind, client.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL, True, price, -1, nonce=args.nonce)
-            if error:
-                die(error)
-            item = {"type": name, "tx_type": tx_type, "tx_hash": tx_hash, "tx_info": json.loads(tx_info)}
+            values = (int(book["market_id"]), int(time.time_ns() % 9_000_000_000), size, price, ask, kind, client.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL, True, price, -1)
+            order_nonce = child_nonce(args.nonce, offset)
             if args.execute:
-                response = await client.send_tx(tx_type=tx_type, tx_info=tx_info)
-                item["response"] = response.to_dict()
+                tx, response, error = await client.create_order(*values, nonce=order_nonce)
+                if error:
+                    die(error)
+                item = {"type": name, "transaction": tx.to_dict(), "response": response.to_dict(), "nonce": order_nonce}
+            else:
+                tx_type, tx_info, tx_hash, error = client.sign_create_order(*values, nonce=order_nonce)
+                if error:
+                    die(error)
+                item = {"type": name, "tx_type": tx_type, "tx_hash": tx_hash, "tx_info": json.loads(tx_info), "nonce": order_nonce}
             result.append(item)
         return {"orders": result}
     finally:
