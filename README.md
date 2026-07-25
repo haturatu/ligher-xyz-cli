@@ -30,8 +30,8 @@ nonces, authentication, and WebSocket connectivity.
 Install from this repository:
 
 ```bash
-git clone https://github.com/haturatu/ligher-cli.git
-cd ligher-cli/lighter-cli
+git clone https://github.com/haturatu/ligher-xyz-cli.git
+cd ligher-xyz-cli
 python3 -m pip install --user -e .
 lighter --help
 ```
@@ -213,7 +213,7 @@ Referral endpoints require a configured account and authorization token.
 Configuration defaults to:
 
 ```text
-~/.config/lighter-cli/config.json
+~/.config/ligher-xyz-cli/config.json
 ```
 
 Override it with `LIGHTER_CONFIG`. Account profiles are separated by network:

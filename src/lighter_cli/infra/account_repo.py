@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-CONFIG_PATH = Path(os.getenv("LIGHTER_CONFIG", Path.home() / ".config/lighter-cli/config.json"))
+CONFIG_PATH = Path(os.getenv("LIGHTER_CONFIG", Path.home() / ".config/ligher-xyz-cli/config.json"))
 _PREFIX = "enc_v1:"
 
 

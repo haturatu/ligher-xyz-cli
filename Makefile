@@ -4,8 +4,8 @@ VENV ?= .venv
 VENV_PYTHON := $(VENV)/bin/python
 INSTALL_BIN ?= $(HOME)/.local/bin
 BASHRC ?= $(HOME)/.bashrc
-PACKAGE := lighter-cli
-COMPLETION_LINE := eval "$$(lighter completion bash)" \# lighter-cli-completion
+PACKAGE := ligher-xyz-cli
+COMPLETION_LINE := eval "$$(lighter completion bash)" \# ligher-xyz-cli-completion
 LOCALE_PO := $$(find src/lighter_cli/locale -name '*.po' -type f)
 
 .PHONY: help install uninstall completion locales test lint format check package venv clean
@@ -30,7 +30,7 @@ install:
 uninstall:
 	-$(PIP) uninstall -y $(PACKAGE)
 	touch "$(BASHRC)"
-	sed -i '\|^eval "$$(lighter completion bash)" # lighter-cli-completion$$|d' "$(BASHRC)"
+	sed -i '\|^eval "$$(lighter completion bash)" # ligher-xyz-cli-completion$$|d' "$(BASHRC)"
 
 completion:
 	touch "$(BASHRC)"

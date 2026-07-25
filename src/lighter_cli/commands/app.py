@@ -25,7 +25,7 @@ from lighter_cli.lib import formatters
 
 MAINNET = "https://mainnet.zklighter.elliot.ai"
 TESTNET = "https://testnet.zklighter.elliot.ai"
-CONFIG_PATH = Path(os.getenv("LIGHTER_CONFIG", Path.home() / ".config/lighter-cli/config.json"))
+CONFIG_PATH = Path(os.getenv("LIGHTER_CONFIG", Path.home() / ".config/ligher-xyz-cli/config.json"))
 JSON_OUTPUT = False
 
 
