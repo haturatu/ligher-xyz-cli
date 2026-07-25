@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import getpass
 import json
 import os
 import signal
@@ -10,7 +11,7 @@ import stat
 import subprocess
 import sys
 import time
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_DOWN
 from pathlib import Path
 from typing import Any
 from lighter_cli.client.http import APIError, request
@@ -25,7 +26,7 @@ from lighter_cli.lib import formatters
 
 MAINNET = "https://mainnet.zklighter.elliot.ai"
 TESTNET = "https://testnet.zklighter.elliot.ai"
-CONFIG_PATH = Path(os.getenv("LIGHTER_CONFIG", Path.home() / ".config/ligher-xyz-cli/config.json"))
+CONFIG_PATH = Path(os.getenv("LIGHTER_CONFIG", Path.home() / ".config/ligher-xyz-cli/accounts.db"))
 JSON_OUTPUT = False
 
 
@@ -40,7 +41,7 @@ def emit(value: Any) -> None:
 
 def config(testnet: bool = False) -> dict[str, Any]:
     try:
-        account_repo.CONFIG_PATH = CONFIG_PATH
+        account_repo.DB_PATH = CONFIG_PATH
         accounts, default = account_repo.list_accounts(testnet)
         return {"accounts": accounts, "default": default}
     except (OSError, json.JSONDecodeError, RuntimeError) as exc:
@@ -48,7 +49,7 @@ def config(testnet: bool = False) -> dict[str, Any]:
 
 
 def save(value: dict[str, Any], testnet: bool = False) -> None:
-    account_repo.CONFIG_PATH = CONFIG_PATH
+    account_repo.DB_PATH = CONFIG_PATH
     account_repo.save_accounts(testnet, value.get("accounts", {}), value.get("default"))
 
 
@@ -204,6 +205,22 @@ def integer(value: str, decimals: int, label: str) -> int:
     return int(scaled)
 
 
+def stake_size(stake: float, leverage: int | None, price: Decimal, decimals: int, is_perp: bool) -> str:
+    """Convert quote-margin stake to a Lighter-valid base size.
+
+    The exchange rejects a value with more fractional digits than the market
+    supports.  Rounding down avoids ever submitting a size greater than the
+    requested stake permits.
+    """
+    multiplier = Decimal(leverage or 1) if is_perp else Decimal(1)
+    raw_size = Decimal(str(stake)) * multiplier / price
+    quantum = Decimal(1).scaleb(-decimals)
+    size = raw_size.quantize(quantum, rounding=ROUND_DOWN)
+    if size <= 0:
+        die("stake is too small for this market's minimum supported size")
+    return format(size, "f")
+
+
 def resolve_cancel(args: argparse.Namespace) -> tuple[str, int]:
     """Resolve hl-compatible optional cancel arguments against Lighter orders."""
     account = get_account(args)
@@ -331,8 +348,12 @@ async def signed_tpsl(args: argparse.Namespace) -> dict[str, Any]:
             tx_type, tx_info, tx_hash, error = client.sign_create_order(int(book["market_id"]), int(time.time_ns() % 9_000_000_000), size, price, ask, kind, client.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL, True, price, -1, nonce=args.nonce)
             if error:
                 die(error)
-            result.append({"type": name, "tx_type": tx_type, "tx_hash": tx_hash, "tx_info": json.loads(tx_info)})
-        return {"dry_run": True, "orders": result}
+            item = {"type": name, "tx_type": tx_type, "tx_hash": tx_hash, "tx_info": json.loads(tx_info)}
+            if args.execute:
+                response = await client.send_tx(tx_type=tx_type, tx_info=tx_info)
+                item["response"] = response.to_dict()
+            result.append(item)
+        return {"orders": result}
     finally:
         await close_sdk(client)
 
@@ -423,6 +444,14 @@ def command(args: argparse.Namespace) -> None:
                 args.api_key_index = int(input("API key index: "))
             except (ValueError, EOFError):
                 die("account add cancelled")
+        # Command-line secrets leak through shell history and process lists.
+        # Prompt only on an interactive terminal; scripts can use explicit
+        # options or environment variables without blocking.
+        if sys.stdin.isatty():
+            if not args.api_private_key and not os.getenv("LIGHTER_API_PRIVATE_KEY"):
+                args.api_private_key = getpass.getpass("API private key (leave blank to use environment later): ").strip() or None
+            if not args.auth_token:
+                args.auth_token = getpass.getpass("Authorization token (optional, hidden): ").strip() or None
         value = config(args.testnet)
         value["accounts"][args.name] = {"account_index": args.account_index, "api_key_index": args.api_key_index}
         if args.api_private_key: value["accounts"][args.name]["api_private_key"] = args.api_private_key
@@ -537,12 +566,13 @@ def command(args: argparse.Namespace) -> None:
     if args.command in {"order-create", "order-limit", "order-market"}:
         if args.command == "order-limit":
             args.size, args.coin, args.price = limit_shape(args, die)
+            original_side = args.side
             args.kind, args.market_name, args.tif, args.trigger, args.expiry, args.client_order_id = "limit", args.coin, args.tif.lower(), None, None, None
             args.side = "buy" if args.side in {"buy", "long"} else "sell"
             if args.stake is not None:
                 price = Decimal(args.price)
-                multiplier = Decimal(args.leverage or 1) if args.side in {"buy", "sell"} else Decimal(args.leverage or 1)
-                args.size = str(Decimal(str(args.stake)) * multiplier / price)
+                book = market(args, args.coin)
+                args.size = stake_size(args.stake, args.leverage, price, int(book["supported_size_decimals"]), original_side in {"long", "short"})
         if args.command == "order-market":
             if args.side == "close":
                 if args.b is not None: die("close syntax: lighter order market close <coin>")
@@ -550,6 +580,7 @@ def command(args: argparse.Namespace) -> None:
                 args.command = "order-market-close"
                 emit(asyncio.run(signed_close(args))); return
             args.size, args.coin = market_shape(args, die)
+            original_side = args.side
             book = market(args, args.coin)
             mark = Decimal(str(book.get("mark_price") or book.get("last_trade_price")))
             slippage = Decimal(str(args.slippage)) / 100
@@ -557,7 +588,7 @@ def command(args: argparse.Namespace) -> None:
             args.side = "buy" if args.side in {"buy", "long"} else "sell"
             args.price = str(mark * (1 + slippage if args.side == "buy" else 1 - slippage))
             if args.stake is not None:
-                args.size = str(Decimal(str(args.stake)) * Decimal(args.leverage or 1) / mark)
+                args.size = stake_size(args.stake, args.leverage, mark, int(book["supported_size_decimals"]), original_side in {"long", "short"})
         emit(asyncio.run(signed_order(args))); return
     if args.command == "order-cancel":
         args.market_name, args.order_id = resolve_cancel(args)
@@ -589,7 +620,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true", help=_("Output in JSON format"))
     p.add_argument("--testnet", action="store_true", help=_("Use testnet"))
     p.add_argument("--lang", default=language_from_argv(), metavar="LANG", help=_("Display language (e.g. en, ja, zh, ko)"))
-    sub = p.add_subparsers(dest="group", required=True)
+    sub = p.add_subparsers(dest="group")
 
     account = sub.add_parser("account", help=_("Account management and information"), formatter_class=argparse.RawTextHelpFormatter, epilog="Examples:\n  lighter account add\n  lighter account ls\n  lighter account positions --watch"); ac = account.add_subparsers(dest="command", required=True)
     x = ac.add_parser("add", help="アカウントを追加"); x.add_argument("name", nargs="?"); x.add_argument("account_index", type=int, nargs="?"); x.add_argument("api_key_index", type=int, nargs="?"); x.add_argument("--api-private-key"); x.add_argument("--auth-token"); x.set_defaults(command="account-add")
@@ -603,14 +634,14 @@ def parser() -> argparse.ArgumentParser:
 
     order = sub.add_parser("order", help=_("Order management and trading"), formatter_class=argparse.RawTextHelpFormatter, epilog="Examples:\n  lighter order ls\n  lighter order limit long 0.001 BTC 60000\n  lighter order twap short 1 BTC 30"); oc = order.add_subparsers(dest="command", required=True)
     x = oc.add_parser("ls", help="未約定注文一覧"); x.add_argument("--user", type=int); x.add_argument("-w", "--watch", action="store_true"); x.set_defaults(command="account-orders")
-    x = oc.add_parser("limit", help="指値注文を出す (buy/sell = 現物, long/short = 先物)"); x.add_argument("side"); x.add_argument("a", nargs="?"); x.add_argument("b", nargs="?"); x.add_argument("c", nargs="?"); x.add_argument("--tif", default="gtc"); x.add_argument("--reduce-only", action="store_true"); x.add_argument("--stake", type=float); x.add_argument("--leverage", type=int); x.add_argument("--cross", action="store_true"); x.add_argument("--isolated", action="store_true"); x.set_defaults(command="order-limit", nonce=-1, execute=False)
-    x = oc.add_parser("market", help="成行注文を出す (buy/sell = 現物, long/short/close = 先物)"); x.add_argument("side"); x.add_argument("a", nargs="?"); x.add_argument("b", nargs="?"); x.add_argument("--slippage", type=float, default=1.0); x.add_argument("--ratio", type=float, default=1.0); x.add_argument("--reduce-only", action="store_true"); x.add_argument("--stake", type=float); x.add_argument("--leverage", type=int); x.add_argument("--cross", action="store_true"); x.add_argument("--isolated", action="store_true"); x.set_defaults(command="order-market", nonce=-1, execute=False)
-    x = oc.add_parser("twap", help="TWAP注文を出す (先物のみ: long/short を使用)"); x.add_argument("side"); x.add_argument("size"); x.add_argument("coin"); x.add_argument("interval"); x.add_argument("--reduce-only", action="store_true"); x.add_argument("--stake", type=float); x.add_argument("--leverage", type=int); x.add_argument("--cross", action="store_true"); x.add_argument("--isolated", action="store_true"); x.set_defaults(command="order-twap", nonce=-1, execute=False)
-    x = oc.add_parser("tpsl", help="建玉のTP/SLトリガー注文を設定"); x.add_argument("coin"); x.add_argument("--tp", type=float); x.add_argument("--sl", type=float); x.add_argument("--ratio", type=float, default=1.0); x.add_argument("--nonce", type=int, default=-1); x.set_defaults(command="order-tpsl", market_name=None)
-    x = oc.add_parser("twap-cancel", help="ネイティブTWAP注文をキャンセル"); x.add_argument("coin", nargs="?"); x.add_argument("twap_id", nargs="?", type=int); x.set_defaults(command="order-cancel", market_name=None, order_id=None, nonce=-1, execute=False)
-    x = oc.add_parser("cancel", help="注文をキャンセル"); x.add_argument("oid", nargs="?", type=int); x.set_defaults(command="order-cancel", market_name=None, order_id=None, nonce=-1, execute=False)
-    x = oc.add_parser("cancel-all", help="すべての注文をキャンセル"); x.add_argument("--coin"); x.add_argument("-y", "--yes", action="store_true"); x.set_defaults(command="order-cancel-all", market_name=None, nonce=-1, execute=False)
-    x = oc.add_parser("set-leverage", help="レバレッジを設定"); x.add_argument("coin"); x.add_argument("leverage", type=int); x.add_argument("--cross", action="store_true"); x.add_argument("--isolated", action="store_true"); x.set_defaults(command="order-set-leverage", execute=False)
+    x = oc.add_parser("limit", help="指値注文を出す (buy/sell = 現物, long/short = 先物)"); x.add_argument("side"); x.add_argument("a", nargs="?"); x.add_argument("b", nargs="?"); x.add_argument("c", nargs="?"); x.add_argument("--tif", default="gtc"); x.add_argument("--reduce-only", action="store_true"); x.add_argument("--stake", type=float); x.add_argument("--leverage", type=int); x.add_argument("--cross", action="store_true"); x.add_argument("--isolated", action="store_true"); x.set_defaults(command="order-limit", nonce=-1, execute=True)
+    x = oc.add_parser("market", help="成行注文を出す (buy/sell = 現物, long/short/close = 先物)"); x.add_argument("side"); x.add_argument("a", nargs="?"); x.add_argument("b", nargs="?"); x.add_argument("--slippage", type=float, default=1.0); x.add_argument("--ratio", type=float, default=1.0); x.add_argument("--reduce-only", action="store_true"); x.add_argument("--stake", type=float); x.add_argument("--leverage", type=int); x.add_argument("--cross", action="store_true"); x.add_argument("--isolated", action="store_true"); x.set_defaults(command="order-market", nonce=-1, execute=True)
+    x = oc.add_parser("twap", help="TWAP注文を出す (先物のみ: long/short を使用)"); x.add_argument("side"); x.add_argument("size"); x.add_argument("coin"); x.add_argument("interval"); x.add_argument("--reduce-only", action="store_true"); x.add_argument("--stake", type=float); x.add_argument("--leverage", type=int); x.add_argument("--cross", action="store_true"); x.add_argument("--isolated", action="store_true"); x.set_defaults(command="order-twap", nonce=-1, execute=True)
+    x = oc.add_parser("tpsl", help="建玉のTP/SLトリガー注文を設定"); x.add_argument("coin"); x.add_argument("--tp", type=float); x.add_argument("--sl", type=float); x.add_argument("--ratio", type=float, default=1.0); x.add_argument("--nonce", type=int, default=-1); x.set_defaults(command="order-tpsl", market_name=None, execute=True)
+    x = oc.add_parser("twap-cancel", help="ネイティブTWAP注文をキャンセル"); x.add_argument("coin", nargs="?"); x.add_argument("twap_id", nargs="?", type=int); x.set_defaults(command="order-cancel", market_name=None, order_id=None, nonce=-1, execute=True)
+    x = oc.add_parser("cancel", help="注文をキャンセル"); x.add_argument("oid", nargs="?", type=int); x.set_defaults(command="order-cancel", market_name=None, order_id=None, nonce=-1, execute=True)
+    x = oc.add_parser("cancel-all", help="すべての注文をキャンセル"); x.add_argument("--coin"); x.add_argument("-y", "--yes", action="store_true"); x.set_defaults(command="order-cancel-all", market_name=None, nonce=-1, execute=True)
+    x = oc.add_parser("set-leverage", help="レバレッジを設定"); x.add_argument("coin"); x.add_argument("leverage", type=int); x.add_argument("--cross", action="store_true"); x.add_argument("--isolated", action="store_true"); x.set_defaults(command="order-set-leverage", execute=True)
     x = oc.add_parser("configure", help="注文のデフォルトを設定"); x.add_argument("--slippage", type=float); x.set_defaults(command="order-configure")
 
     asset = sub.add_parser("asset", help=_("Asset-specific information"), formatter_class=argparse.RawTextHelpFormatter, epilog="Examples:\n  lighter asset price BTC\n  lighter asset book ETH --watch\n  lighter asset leverage BTC"); asc = asset.add_subparsers(dest="command", required=True)
@@ -631,7 +662,11 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     global JSON_OUTPUT
     install_language(language_from_argv(sys.argv[1:] if argv is None else argv))
-    args = parser().parse_args(argv)
+    command_parser = parser()
+    args = command_parser.parse_args(argv)
+    if args.group is None:
+        command_parser.print_help()
+        return
     args._start = time.perf_counter()
     JSON_OUTPUT = args.json
     command(args)

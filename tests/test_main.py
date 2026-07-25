@@ -16,6 +16,21 @@ def test_root_help_is_localized(capsys):
     with pytest.raises(SystemExit):
         main.main(["--lang", "ja", "--help"])
     assert "Lighter DEX のCLI" in capsys.readouterr().out
+
+
+def test_root_without_command_prints_help(capsys):
+    main.main([])
+    assert "usage: lighter" in capsys.readouterr().out
+
+
+def test_signed_order_commands_execute_by_default():
+    args = app.parser().parse_args(["order", "set-leverage", "BTC", "10"])
+    assert args.execute is True
+
+
+def test_stake_size_is_truncated_to_market_precision():
+    assert main.stake_size(10, None, main.Decimal("51000"), 5, True) == "0.00019"
+    assert main.stake_size(50, 10, main.Decimal("51000"), 5, True) == "0.00980"
 from lighter_cli.cli.output import render
 
 
@@ -26,7 +41,9 @@ def test_integer_exact_precision():
 
 
 def test_account_configuration_lifecycle(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(main, "CONFIG_PATH", tmp_path / "config.json")
+    path = tmp_path / "config.db"
+    monkeypatch.setattr(main, "CONFIG_PATH", path)
+    monkeypatch.setattr(app, "CONFIG_PATH", path)
     main.main(["account", "add", "test", "101", "2"])
     main.main(["account", "set-default", "test"])
     capsys.readouterr()
@@ -51,10 +68,10 @@ def test_human_output_is_a_table_and_json_is_opt_in():
 
 def test_accounts_are_network_scoped_and_private_values_are_encrypted(tmp_path, monkeypatch):
     path = tmp_path / "accounts.json"
-    monkeypatch.setattr(account_repo, "CONFIG_PATH", path)
+    monkeypatch.setattr(account_repo, "DB_PATH", path)
     account_repo.save_accounts(False, {"main": {"account_index": 1, "api_key_index": 2, "api_private_key": "secret"}}, "main")
     account_repo.save_accounts(True, {"test": {"account_index": 3, "api_key_index": 4, "auth_token": "token"}}, "test")
-    assert "secret" not in path.read_text()
+    assert b"secret" not in path.read_bytes()
     assert account_repo.list_accounts(False)[0]["main"]["api_private_key"] == "secret"
     assert account_repo.list_accounts(True)[0]["test"]["auth_token"] == "token"
 

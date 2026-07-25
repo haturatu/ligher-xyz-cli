@@ -207,9 +207,9 @@ Lighter's SDK has no native randomized-TWAP parameter, so this CLI does not
 offer Hyperliquid's `--randomize` option. `--stake` is a USD margin amount;
 when leverage is set, the derived notional is `stake × leverage`.
 
-Signed order methods return a signed transaction for inspection by default.
-Keep private keys out of shell history and verify all transaction payloads
-before submission workflows.
+Order, cancellation, TP/SL, and leverage commands submit their signed
+transactions to Lighter. Keep private keys out of shell history and verify all
+arguments before running them, especially on mainnet.
 
 ### Referral
 
@@ -225,7 +225,7 @@ Referral endpoints require a configured account and authorization token.
 Configuration defaults to:
 
 ```text
-~/.config/ligher-xyz-cli/config.json
+~/.config/ligher-xyz-cli/accounts.db
 ```
 
 Override it with `LIGHTER_CONFIG`. Account profiles are separated by network:
