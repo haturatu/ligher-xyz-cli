@@ -63,5 +63,74 @@ msgstr "マーケット: 先物 {perps} / 現物 {spots}"
 msgid "sort-by must be volume, oi, price, change, funding, or coin"
 msgstr "sort-by は volume、oi、price、change、funding、coin のいずれかです"
 
+msgid "Balances"
+msgstr "残高"
+
+msgid "- Perpetual balance: ${balance:,.2f}"
+msgstr "- 先物残高: ${balance:,.2f}"
+
+msgid "Spot balances"
+msgstr "現物残高"
+
+msgid "token"
+msgstr "token"
+
+msgid "total"
+msgstr "total"
+
+msgid "hold"
+msgstr "hold"
+
+msgid "available"
+msgstr "available"
+
+msgid "Execution time: {seconds:.2f}s"
+msgstr "実行時間: {seconds:.2f}秒"
+
+msgid "Accounts"
+msgstr "アカウント"
+
+msgid "No accounts found. Run 'lighter account add'."
+msgstr "アカウントがありません。'lighter account add' を実行してください。"
+
+msgid "*"
+msgstr "*"
+
+msgid "Alias"
+msgstr "名前"
+
+msgid "Account index"
+msgstr "アカウントID"
+
+msgid "API key index"
+msgstr "APIキーID"
+
+msgid "Type"
+msgstr "種類"
+
+msgid "Positions"
+msgstr "ポジション"
+
+msgid "Coin"
+msgstr "銘柄"
+
+msgid "Size"
+msgstr "サイズ"
+
+msgid "Entry"
+msgstr "建値"
+
+msgid "Value"
+msgstr "価値"
+
+msgid "PnL"
+msgstr "損益"
+
+msgid "Leverage"
+msgstr "レバレッジ"
+
+msgid "Liq"
+msgstr "清算価格"
+
 msgid "Examples:"
 msgstr "例:"

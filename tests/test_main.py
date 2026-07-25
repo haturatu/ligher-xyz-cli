@@ -5,6 +5,8 @@ import pytest
 from lighter_cli import main
 from lighter_cli.commands import app
 from lighter_cli.infra import account_repo
+from lighter_cli.commands.account import render_accounts, render_balances, render_positions
+from lighter_cli.i18n import install_language
 
 
 def test_root_help_is_localized(capsys):
@@ -62,3 +64,27 @@ def test_hl_compatible_order_shapes():
     assert main.limit_shape(args, main.die) == ("0", "BTC", "60000")
     args = argparse.Namespace(a="BTC", b=None, stake=50.0)
     assert main.market_shape(args, main.die) == ("0", "BTC")
+
+
+def test_balances_use_hl_style_summary(capsys):
+    install_language("ja")
+    render_balances({"collateral": "12.5", "assets": [{"symbol": "USDC", "balance": "3", "locked_balance": "0.5"}]}, 0.12)
+    output = capsys.readouterr().out
+    assert "残高" in output and "先物残高: $12.50" in output
+    assert "現物残高" in output and "USDC" in output and "0.12秒" in output
+
+
+def test_balances_default_to_english(capsys):
+    install_language("en")
+    render_balances({"collateral": "1", "assets": []}, 0.1)
+    output = capsys.readouterr().out
+    assert "Balances" in output and "Perpetual balance" in output and "Execution time: 0.10s" in output
+
+
+def test_accounts_and_positions_use_rich_hl_style(capsys):
+    install_language("en")
+    render_accounts({"test": {"account_index": 101, "api_key_index": 2}}, "test", 0.1)
+    render_positions({"positions": [{"symbol": "BTC", "position": "0"}, {"symbol": "ETH", "position": "1", "avg_entry_price": "2000"}]}, 0.1)
+    output = capsys.readouterr().out
+    assert "Accounts" in output and "Positions" in output and "ETH" in output
+    assert "BTC" not in output

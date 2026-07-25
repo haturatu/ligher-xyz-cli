@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 from lighter_cli.client.http import APIError, request
 from lighter_cli.cli.output import render, table
-from lighter_cli.commands.account import balance_rows, position_rows
+from lighter_cli.commands.account import balance_rows, position_rows, render_accounts, render_balances, render_positions
 from lighter_cli.commands.markets import render_overview
 from lighter_cli.commands.order import ORDER_TYPES, TIFS
 from lighter_cli.i18n import _, install_language, language_from_argv
@@ -167,11 +167,10 @@ def display_account(args: argparse.Namespace, view: str) -> None:
         emit(data)
         return
     if view == "balances":
-        print(f"Account {data.get('account_index')}  Available: {data.get('available_balance')}  Collateral: {data.get('collateral')}")
-        emit(balance_rows(data))
+        render_balances(data, getattr(args, "_start", None) and time.perf_counter() - args._start)
         return
     if view == "positions":
-        emit(position_rows(data))
+        render_positions(data, getattr(args, "_start", None) and time.perf_counter() - args._start)
         return
     print(f"Account {data.get('account_index')}  Collateral: {data.get('collateral')}  Available: {data.get('available_balance')}")
     positions = data.get("positions", [])
@@ -432,11 +431,9 @@ def command(args: argparse.Namespace) -> None:
         save(value, args.testnet); emit({"added": args.name}); return
     if args.command == "account-list":
         value = config(args.testnet)
-        rows = [{"default": "*" if name == value.get("default") else "", "name": name,
-                 "account index": item.get("account_index"), "API key index": item.get("api_key_index"),
-                 "trading": "yes" if item.get("api_private_key") or os.getenv("LIGHTER_API_PRIVATE_KEY") else "read-only"}
-                for name, item in value["accounts"].items()]
-        emit(value if JSON_OUTPUT else rows); return
+        if JSON_OUTPUT: emit(value)
+        else: render_accounts(value["accounts"], value.get("default"), time.perf_counter() - args._start)
+        return
     if args.command == "account-use":
         value = config(args.testnet)
         if args.name not in value["accounts"]: die(f"unknown account {args.name!r}")
@@ -635,6 +632,7 @@ def main(argv: list[str] | None = None) -> None:
     global JSON_OUTPUT
     install_language(language_from_argv(sys.argv[1:] if argv is None else argv))
     args = parser().parse_args(argv)
+    args._start = time.perf_counter()
     JSON_OUTPUT = args.json
     command(args)
 
